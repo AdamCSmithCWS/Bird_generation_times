@@ -1,14 +1,26 @@
 
-library(bbsBayes)
+library(bbsBayes2)
 library(tidyverse)
 
-strat <- stratify("bbs_usgs")
-sp_full <- strat$species_strat %>% 
+data_full <- load_bbs_data()
+
+sp_full <- data_full$species %>%
+  filter(unid_combined) %>% #only using the species list that sums observations across lumped and split species
   mutate(sci_name = paste(genus,species)) # the full BBS species list from the 2021 data release
 
 
+# library(bbsBayes)
+# library(tidyverse)
+# 
+# data_full <- stratify(by = "bbs_usgs")
+# 
+# sp_full <- data_full$species_strat %>%
+#   mutate(sci_name = paste(genus,species)) # the full BBS species list from the 2021 data release
 
-gens = read.csv("alt_data/cobi13486-sup-0004-tables4.csv") # supplement from Bird et al.
+
+
+gens = read.csv("cobi13486-sup-0004-tables4.csv") # supplement from Bird et al.
+
 
 gens <- gens %>% select(Scientific_name,
                         GenLength)
@@ -19,9 +31,9 @@ spslist <- left_join(sp_full,gens,by = c("sci_name" = "Scientific_name"))
 
 # reconciling scientific names --------------------------------------------
 
-sps_nomatch <- spslist[which(is.na(spslist$GenLength)),"english"]
+sps_nomatch <- unlist(spslist[which(is.na(spslist$GenLength)),"english"])
 
-fullgensnames = read.csv("alt_data/cobi13486-sup-0001-tables1.csv") # an additional supplement from Bird et al. with alternate common names
+fullgensnames = read.csv("cobi13486-sup-0001-tables1.csv") # an additional supplement from Bird et al. with alternate common names
 sps_altmatch <- sps_nomatch[sps_nomatch %in% unique(fullgensnames$Common_name)]
 for(s1 in sps_altmatch){
   scin1 = fullgensnames[which(fullgensnames$Common_name == s1),"Scientific_name"]
@@ -33,7 +45,8 @@ for(s1 in sps_altmatch){
 # Manual adjustments for unmatched species --------------------------------
 
 
-
+spslist[which(spslist$english == "Short-billed Gull"),"GenLength"] <- gens[which(gens$Scientific_name == "Larus canus"),"GenLength"]
+spslist[which(grepl("Swinhoe",spslist$english)),"GenLength"] <- gens[which(gens$Scientific_name == "Zosterops japonicus"),"GenLength"]
 spslist[which(spslist$english == "American Three-toed Woodpecker"),"GenLength"] <- gens[which(gens$Scientific_name == "Picoides tridactylus"),"GenLength"]
 spslist[which(spslist$english == "Black-necked Stilt"),"GenLength"] <- gens[which(gens$Scientific_name == "Himantopus himantopus"),"GenLength"]
 spslist[which(spslist$english == "Green Heron"),"GenLength"] <- gens[which(gens$Scientific_name == "Butorides striata"),"GenLength"]
@@ -73,8 +86,21 @@ spslist[grepl(spslist$english,pattern = "American Crow") &
 
 
 
+sps_missing <- spslist %>% 
+  filter(is.na(GenLength),
+         !str_starts(english,"unid."),
+         !str_starts(english,"Unid."),
+         !str_starts(english,"hybrid"),
+         !str_detect(english,"Golden-winged x Blue-winged"))
+
+if(nrow(sps_missing) > 0){
+  stop("At least one species generation length is missing")
+sps_missing
+  }
+
+
 write_csv(spslist,
-          "alt_data/full_bbs_species_list_w3_generations.csv")
+          "full_bbs_species_list_w_generation_length.csv")
 
 
 
